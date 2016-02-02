@@ -1256,6 +1256,20 @@ int eval() {
     return 0;
 }
 
+void print_symbol_table()
+{
+  int *cur_id;
+  cur_id = symbols;
+
+  while(cur_id[Token])
+  {
+    printf("cur_id[Name]: %s\n", cur_id[Name]);
+    printf("cur_id[Hash]: %x\n", cur_id[Hash]);
+    printf("cur_id[Type]: %d\n", cur_id[Type]);
+    cur_id = cur_id + IdSize;
+  }
+}
+
 int main(int argc, char **argv)
 {
 
@@ -1354,5 +1368,6 @@ int main(int argc, char **argv)
     *--sp = (int)argv;
     *--sp = (int)tmp;
 
+    // print_symbol_table();
     return eval();
 }
