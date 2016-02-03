@@ -11,7 +11,14 @@
 #include <memory.h>
 #include <string.h>
 
-// #define SUPPORT_DEBUG
+ #define SUPPORT_DEBUG
+
+#ifdef SUPPORT_DEBUG
+int print_spec_text(int *cur_text);
+void print_text();
+void print_data();
+void print_symbol_table();
+#endif
 
 int token;                    // current token
 int token_val;                // value of current token (mainly for number)
@@ -1230,10 +1237,95 @@ void program() {
     }
 }
 
+void show_regs()
+{
+  printf("ax: %#x(%d)\n", ax, ax);
+  printf("sp: %p\n", sp);
+  printf("bp: %p\n", bp);
+  printf("pc: %p\n", pc);
+}
 
+void debug_usage()
+{
+  printf("command\n");
+  printf("s: step\n");
+  printf("q: quit\n");
+  printf("r: print all register content\n");
+  printf("d: print data\n");
+  printf("l: print text\n");
+  printf("t: print symbol table\n");
+  printf("x address: print data segment address\n");
+}
+
+#define INPUT_SIZE 20
 int eval() {
+  int line=0, ch;
+  char input_str[INPUT_SIZE+1];
+  char cmd;
     int op, *tmp;
     while (1) {
+#ifdef SUPPORT_DEBUG
+        print_spec_text(pc);
+      debug_cmd:
+        printf("%d ## debug> ", line++);
+        fgets(input_str, INPUT_SIZE, stdin);
+        switch (input_str[0])
+        {
+          case 'q':
+          {
+            exit(1);
+            break;
+          }
+          case '\n':
+          case 's': // step
+          {
+            break;
+          }
+          case 'd':
+          {
+            print_data();
+            goto debug_cmd;
+          }
+          case 't':
+          {
+            print_symbol_table();
+            goto debug_cmd;
+          }
+          case 'h':
+          case '?':
+          {
+            debug_usage();
+            goto debug_cmd;
+          }
+          case 'l':
+          {
+            print_text();
+            goto debug_cmd;
+          }
+          case 'x': // show data segment content, ex: x 0xf756301c
+          {
+            unsigned int addr;
+
+            sscanf(input_str, "%c %x\n", &cmd, &addr);
+            printf("cmd: %c, addr: %x\n", cmd, addr);
+            if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
+              printf("%s\n", (char *)addr);
+            else
+              printf("%x is not in data segment range (%p ~ %p)\n", addr, begin_data, data);
+            //printf("%#x(%d)\n", *((int *)addr));
+            goto debug_cmd;
+          }
+          case 'r': // show registers
+          {
+            show_regs(); 
+          }
+          default:
+          {
+            goto debug_cmd;
+          }
+
+        } // end switch (input_str[0])
+#endif
         op = *pc++; // get next operation code
 
         if (op == IMM)       {ax = *pc++;}                                     // load immediate value to ax
@@ -1306,6 +1398,29 @@ void print_symbol_table()
   }
 }
 
+// return 1: has argument
+// return 0: has no argument
+int print_spec_text(int *cur_text)
+{
+  int has_argu=0;
+
+  const char* inst_str = inst_2_str(*cur_text);
+  has_argu = inst_has_argu(*cur_text);
+
+  if (inst_str)
+    printf("addr %p ## %s", cur_text, inst_str);
+  else
+    printf("addr %p ## %x", cur_text, *cur_text);
+
+  if (has_argu)
+  {
+    ++cur_text;
+    printf(" %#x(%d)", *cur_text, *cur_text);
+  }
+  printf("\n");
+  return has_argu;
+}
+
 void print_text()
 {
   printf("text segment:\n");
@@ -1315,6 +1430,12 @@ void print_text()
   int has_argu=0;
   while (cur_text != text)
   {
+    has_argu = print_spec_text(cur_text);
+    if (has_argu)
+      cur_text += 2;
+    else
+      ++cur_text;
+#if 0
     const char* inst_str = inst_2_str(*cur_text);
     has_argu = inst_has_argu(*cur_text);
     if (*cur_text == -1)
@@ -1333,7 +1454,7 @@ void print_text()
       printf("addr %p ## %#x (%d)\n", cur_text, *cur_text, *cur_text);
       has_argu = 0;
     }
-    ++cur_text;
+#endif
   }
 
 }
@@ -1405,9 +1526,12 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) for symbol table\n", poolsize);
         return -1;
     }
+
+#ifdef SUPPORT_DEBUG
     printf("text: %p\n", text);
     printf("data: %p\n", data);
     printf("stack: %p\n", stack);
+#endif
 
     memset(text, 0, poolsize);
     memset(data, 0, poolsize);
@@ -1466,6 +1590,11 @@ int main(int argc, char **argv)
 
     // setup stack
     sp = (int *)((int)stack + poolsize);
+
+#ifdef SUPPORT_DEBUG
+    printf("sp: %x\n", sp);
+#endif
+
     *--sp = EXIT; // call exit if main returns
     *--sp = PUSH; tmp = sp;
     *--sp = argc;
@@ -1473,9 +1602,9 @@ int main(int argc, char **argv)
     *--sp = (int)tmp;
 
 #ifdef SUPPORT_DEBUG
-    print_text();
-    print_data();
-    print_symbol_table();
+    //print_text();
+    //print_data();
+    // print_symbol_table();
 #endif
     return eval();
 }
