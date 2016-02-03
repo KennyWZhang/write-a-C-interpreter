@@ -38,6 +38,14 @@ const char *inst_str[] =
 
 #define INST_LEN (sizeof(inst_str)/sizeof(char*))
 
+int inst_has_argu(int inst)
+{
+  if ( (LEA <= inst) && (inst <= ADJ))
+    return 1;
+  else
+    return 0;
+}
+
 const char* inst_2_str(int inst)
 {
   if ( (0 <= inst) && (inst < INST_LEN))
@@ -1290,15 +1298,29 @@ void print_symbol_table()
 
 void print_text()
 {
-  int *cur_text = begin_text;
+  int *cur_text = begin_text+1;
   int i;
+  int has_argu=0;
   while (cur_text != text)
   {
     const char* inst_str = inst_2_str(*cur_text);
+    has_argu = inst_has_argu(*cur_text);
+    if (*cur_text == -1)
+    {
+      ++cur_text;
+      continue; 
+    }
     if (inst_str)
       printf("addr %p ## %s\n", cur_text, inst_str);
     else
       printf("addr %p ## %x\n", cur_text, *cur_text);
+
+    if (has_argu)
+    {
+      ++cur_text;
+      printf("addr %p ## %#x (%d)\n", cur_text, *cur_text, *cur_text);
+      has_argu = 0;
+    }
     ++cur_text;
   }
 
@@ -1408,7 +1430,7 @@ int main(int argc, char **argv)
     *--sp = (int)argv;
     *--sp = (int)tmp;
 
-    //print_text();
+    // print_text();
     // print_symbol_table();
     return eval();
 }
