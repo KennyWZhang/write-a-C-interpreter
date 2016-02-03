@@ -1,20 +1,38 @@
 // this file is used for tutorial to build the compiler step by step
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
 
+ #define SUPPORT_DEBUG
+
+#ifdef SUPPORT_DEBUG
+int print_spec_text(int *cur_text);
+void print_text();
+void print_data();
+void print_symbol_table();
+void print_source_code();
+#endif
+
 int token;                    // current token
 int token_val;                // value of current token (mainly for number)
+char *src_begin;
 char *src, *old_src;          // pointer to source code string;
 int poolsize;                 // default size of text/data/stack
 int line;                     // line number
+int *begin_text;
+signed char *begin_data;
 int *text,                    // text segment
     *old_text,                // for dump text segment
     *stack;                   // stack
-char *data;                   // data segment
+signed char *data;                   // data segment
 int *pc, *bp, *sp, ax, cycle; // virtual machine registers
 int *current_id,              // current parsed ID
     *symbols;                 // symbol table
@@ -24,6 +42,33 @@ int *idmain;                  // the `main` function
 enum { LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PUSH,
        OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
        OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT };
+
+#ifdef SUPPORT_DEBUG
+const char *inst_str[] = 
+{ 
+  "LEA","IMM","JMP","CALL","JZ ","JNZ","ENT","ADJ","LEV","LI ","LC ","SI ","SC ","PUSH"," OR ","XOR","AND","EQ ","NE ","LT ","GT ","LE ","GE ","SHL","SHR","ADD","SUB","MUL","DIV","MOD"," OPEN","READ","CLOS","PRTF","MALC","MSET","MCMP","EXIT"
+};
+
+#define INST_LEN (sizeof(inst_str)/sizeof(char*))
+
+int inst_has_argu(int inst)
+{
+  if ( (LEA <= inst) && (inst <= ADJ))
+    return 1;
+  else
+    return 0;
+}
+
+const char* inst_2_str(int inst)
+{
+  if ( (0 <= inst) && (inst < INST_LEN))
+  {
+    return inst_str[inst];
+  }
+  else
+    return 0;
+}
+#endif
 
 // tokens and classes (operators last and in precedence order)
 enum {
@@ -336,6 +381,7 @@ void expression(int level) {
             // append the end of string character '\0', all the data are default
             // to 0, so just move data one position forward.
             data = (char *)(((int)data + sizeof(int)) & (-sizeof(int)));
+            // *data = 0;
             expr_type = PTR;
         }
         else if (token == Sizeof) {
@@ -1175,6 +1221,7 @@ void global_declaration() {
             current_id[Class] = Glo; // global variable
             current_id[Value] = (int)data; // assign memory address
             data = data + sizeof(int);
+            // *data = 0;
         }
 
         if (token == ',') {
@@ -1192,10 +1239,101 @@ void program() {
     }
 }
 
+void show_regs()
+{
+  printf("ax: %#x(%d)\n", ax, ax);
+  printf("sp: %p\n", sp);
+  printf("bp: %p\n", bp);
+  printf("pc: %p\n", pc);
+}
 
+void debug_usage()
+{
+  printf("command\n");
+  printf("s: step\n");
+  printf("q: quit\n");
+  printf("r: print all register content\n");
+  printf("d: print data\n");
+  printf("e: print text\n");
+  printf("l: print source code\n");
+  printf("t: print symbol table\n");
+  printf("x address: print data segment address\n");
+}
+
+#define INPUT_SIZE 20
 int eval() {
+  int line=0, ch;
+  char input_str[INPUT_SIZE+1];
+  char cmd;
     int op, *tmp;
     while (1) {
+#ifdef SUPPORT_DEBUG
+        print_spec_text(pc);
+      debug_cmd:
+        printf("%d ## debug> ", line++);
+        fgets(input_str, INPUT_SIZE, stdin);
+        switch (input_str[0])
+        {
+          case 'q':
+          {
+            exit(1);
+            break;
+          }
+          case '\n':
+          case 's': // step
+          {
+            break;
+          }
+          case 'd':
+          {
+            print_data();
+            goto debug_cmd;
+          }
+          case 't':
+          {
+            print_symbol_table();
+            goto debug_cmd;
+          }
+          case 'h':
+          case '?':
+          {
+            debug_usage();
+            goto debug_cmd;
+          }
+          case 'l':
+          {
+            print_source_code();
+            goto debug_cmd;
+          }
+          case 'e':
+          {
+            print_text();
+            goto debug_cmd;
+          }
+          case 'x': // show data segment content, ex: x 0xf756301c
+          {
+            unsigned int addr;
+
+            sscanf(input_str, "%c %x\n", &cmd, &addr);
+            printf("cmd: %c, addr: %x\n", cmd, addr);
+            if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
+              printf("%s\n", (char *)addr);
+            else
+              printf("%x is not in data segment range (%p ~ %p)\n", addr, begin_data, data);
+            //printf("%#x(%d)\n", *((int *)addr));
+            goto debug_cmd;
+          }
+          case 'r': // show registers
+          {
+            show_regs(); 
+          }
+          default:
+          {
+            goto debug_cmd;
+          }
+
+        } // end switch (input_str[0])
+#endif
         op = *pc++; // get next operation code
 
         if (op == IMM)       {ax = *pc++;}                                     // load immediate value to ax
@@ -1251,6 +1389,117 @@ int eval() {
     return 0;
 }
 
+#ifdef SUPPORT_DEBUG
+void print_symbol_table()
+{
+  int *cur_id;
+  cur_id = symbols;
+
+  printf("symbol table:\n");
+
+  while(cur_id[Token])
+  {
+    printf("cur_id[Name]: %s\n", cur_id[Name]);
+    printf("cur_id[Hash]: %x\n", cur_id[Hash]);
+    printf("cur_id[Type]: %d\n", cur_id[Type]);
+    cur_id = cur_id + IdSize;
+  }
+}
+
+// return 1: has argument
+// return 0: has no argument
+int print_spec_text(int *cur_text)
+{
+  int has_argu=0;
+
+  const char* inst_str = inst_2_str(*cur_text);
+  has_argu = inst_has_argu(*cur_text);
+
+  if (inst_str)
+    printf("addr %p ## %s", cur_text, inst_str);
+  else
+    printf("addr %p ## %x", cur_text, *cur_text);
+
+  if (has_argu)
+  {
+    ++cur_text;
+    printf(" %#x(%d)", *cur_text, *cur_text);
+  }
+  printf("\n");
+  return has_argu;
+}
+
+void print_source_code()
+{
+  printf("%s\n", src_begin);
+}
+
+void print_text()
+{
+  printf("text segment:\n");
+
+  int *cur_text = begin_text+1;
+  int i;
+  int has_argu=0;
+  while (cur_text != text)
+  {
+    has_argu = print_spec_text(cur_text);
+    if (has_argu)
+      cur_text += 2;
+    else
+      ++cur_text;
+#if 0
+    const char* inst_str = inst_2_str(*cur_text);
+    has_argu = inst_has_argu(*cur_text);
+    if (*cur_text == -1)
+    {
+      ++cur_text;
+      continue; 
+    }
+    if (inst_str)
+      printf("addr %p ## %s\n", cur_text, inst_str);
+    else
+      printf("addr %p ## %x\n", cur_text, *cur_text);
+
+    if (has_argu)
+    {
+      ++cur_text;
+      printf("addr %p ## %#x (%d)\n", cur_text, *cur_text, *cur_text);
+      has_argu = 0;
+    }
+#endif
+  }
+
+}
+
+void print_data()
+{
+  signed char *cur_data = begin_data;
+  int print_addr = 1;
+
+  printf("data segment:\n");
+
+  while(cur_data != data)
+  {
+    if (*cur_data != 0)
+    {
+      if (print_addr)
+      {
+        printf("%p: ", cur_data);
+        print_addr = 0;
+      }
+      printf("%c", *cur_data);
+    }
+    else
+    {
+      printf("\n");
+      print_addr = 1;
+    }
+    ++cur_data;
+  }
+}
+#endif
+
 int main(int argc, char **argv)
 {
 
@@ -1273,10 +1522,15 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) for text area\n", poolsize);
         return -1;
     }
+    begin_text = text;
+
     if (!(data = malloc(poolsize))) {
         printf("could not malloc(%d) for data area\n", poolsize);
         return -1;
     }
+
+    begin_data = data;
+
     if (!(stack = malloc(poolsize))) {
         printf("could not malloc(%d) for stack area\n", poolsize);
         return -1;
@@ -1285,6 +1539,12 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) for symbol table\n", poolsize);
         return -1;
     }
+
+#ifdef SUPPORT_DEBUG
+    printf("text: %p\n", text);
+    printf("data: %p\n", data);
+    printf("stack: %p\n", stack);
+#endif
 
     memset(text, 0, poolsize);
     memset(data, 0, poolsize);
@@ -1332,6 +1592,7 @@ int main(int argc, char **argv)
         return -1;
     }
     src[i] = 0; // add EOF character
+    src_begin = src;
     close(fd);
 
     program();
@@ -1343,11 +1604,21 @@ int main(int argc, char **argv)
 
     // setup stack
     sp = (int *)((int)stack + poolsize);
+
+#ifdef SUPPORT_DEBUG
+    printf("sp: %x\n", sp);
+#endif
+
     *--sp = EXIT; // call exit if main returns
     *--sp = PUSH; tmp = sp;
     *--sp = argc;
     *--sp = (int)argv;
     *--sp = (int)tmp;
 
+#ifdef SUPPORT_DEBUG
+    //print_text();
+    //print_data();
+    // print_symbol_table();
+#endif
     return eval();
 }
