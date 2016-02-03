@@ -18,10 +18,12 @@ int print_spec_text(int *cur_text);
 void print_text();
 void print_data();
 void print_symbol_table();
+void print_source_code();
 #endif
 
 int token;                    // current token
 int token_val;                // value of current token (mainly for number)
+char *src_begin;
 char *src, *old_src;          // pointer to source code string;
 int poolsize;                 // default size of text/data/stack
 int line;                     // line number
@@ -1252,7 +1254,8 @@ void debug_usage()
   printf("q: quit\n");
   printf("r: print all register content\n");
   printf("d: print data\n");
-  printf("l: print text\n");
+  printf("e: print text\n");
+  printf("l: print source code\n");
   printf("t: print symbol table\n");
   printf("x address: print data segment address\n");
 }
@@ -1298,6 +1301,11 @@ int eval() {
             goto debug_cmd;
           }
           case 'l':
+          {
+            print_source_code();
+            goto debug_cmd;
+          }
+          case 'e':
           {
             print_text();
             goto debug_cmd;
@@ -1419,6 +1427,11 @@ int print_spec_text(int *cur_text)
   }
   printf("\n");
   return has_argu;
+}
+
+void print_source_code()
+{
+  printf("%s\n", src_begin);
 }
 
 void print_text()
@@ -1579,6 +1592,7 @@ int main(int argc, char **argv)
         return -1;
     }
     src[i] = 0; // add EOF character
+    src_begin = src;
     close(fd);
 
     program();
