@@ -11,16 +11,19 @@
 #include <memory.h>
 #include <string.h>
 
+// #define SUPPORT_DEBUG
+
 int token;                    // current token
 int token_val;                // value of current token (mainly for number)
 char *src, *old_src;          // pointer to source code string;
 int poolsize;                 // default size of text/data/stack
 int line;                     // line number
 int *begin_text;
+signed char *begin_data;
 int *text,                    // text segment
     *old_text,                // for dump text segment
     *stack;                   // stack
-char *data;                   // data segment
+signed char *data;                   // data segment
 int *pc, *bp, *sp, ax, cycle; // virtual machine registers
 int *current_id,              // current parsed ID
     *symbols;                 // symbol table
@@ -31,6 +34,7 @@ enum { LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PUSH,
        OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
        OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT };
 
+#ifdef SUPPORT_DEBUG
 const char *inst_str[] = 
 { 
   "LEA","IMM","JMP","CALL","JZ ","JNZ","ENT","ADJ","LEV","LI ","LC ","SI ","SC ","PUSH"," OR ","XOR","AND","EQ ","NE ","LT ","GT ","LE ","GE ","SHL","SHR","ADD","SUB","MUL","DIV","MOD"," OPEN","READ","CLOS","PRTF","MALC","MSET","MCMP","EXIT"
@@ -55,6 +59,7 @@ const char* inst_2_str(int inst)
   else
     return 0;
 }
+#endif
 
 // tokens and classes (operators last and in precedence order)
 enum {
@@ -367,6 +372,7 @@ void expression(int level) {
             // append the end of string character '\0', all the data are default
             // to 0, so just move data one position forward.
             data = (char *)(((int)data + sizeof(int)) & (-sizeof(int)));
+            // *data = 0;
             expr_type = PTR;
         }
         else if (token == Sizeof) {
@@ -1206,6 +1212,7 @@ void global_declaration() {
             current_id[Class] = Glo; // global variable
             current_id[Value] = (int)data; // assign memory address
             data = data + sizeof(int);
+            // *data = 0;
         }
 
         if (token == ',') {
@@ -1282,10 +1289,13 @@ int eval() {
     return 0;
 }
 
+#ifdef SUPPORT_DEBUG
 void print_symbol_table()
 {
   int *cur_id;
   cur_id = symbols;
+
+  printf("symbol table:\n");
 
   while(cur_id[Token])
   {
@@ -1298,6 +1308,8 @@ void print_symbol_table()
 
 void print_text()
 {
+  printf("text segment:\n");
+
   int *cur_text = begin_text+1;
   int i;
   int has_argu=0;
@@ -1328,7 +1340,31 @@ void print_text()
 
 void print_data()
 {
+  signed char *cur_data = begin_data;
+  int print_addr = 1;
+
+  printf("data segment:\n");
+
+  while(cur_data != data)
+  {
+    if (*cur_data != 0)
+    {
+      if (print_addr)
+      {
+        printf("%p: ", cur_data);
+        print_addr = 0;
+      }
+      printf("%c", *cur_data);
+    }
+    else
+    {
+      printf("\n");
+      print_addr = 1;
+    }
+    ++cur_data;
+  }
 }
+#endif
 
 int main(int argc, char **argv)
 {
@@ -1358,6 +1394,9 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) for data area\n", poolsize);
         return -1;
     }
+
+    begin_data = data;
+
     if (!(stack = malloc(poolsize))) {
         printf("could not malloc(%d) for stack area\n", poolsize);
         return -1;
@@ -1366,6 +1405,9 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) for symbol table\n", poolsize);
         return -1;
     }
+    printf("text: %p\n", text);
+    printf("data: %p\n", data);
+    printf("stack: %p\n", stack);
 
     memset(text, 0, poolsize);
     memset(data, 0, poolsize);
@@ -1430,7 +1472,10 @@ int main(int argc, char **argv)
     *--sp = (int)argv;
     *--sp = (int)tmp;
 
-    // print_text();
-    // print_symbol_table();
+#ifdef SUPPORT_DEBUG
+    print_text();
+    print_data();
+    print_symbol_table();
+#endif
     return eval();
 }
