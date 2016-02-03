@@ -16,6 +16,7 @@ int token_val;                // value of current token (mainly for number)
 char *src, *old_src;          // pointer to source code string;
 int poolsize;                 // default size of text/data/stack
 int line;                     // line number
+int *begin_text;
 int *text,                    // text segment
     *old_text,                // for dump text segment
     *stack;                   // stack
@@ -29,6 +30,23 @@ int *idmain;                  // the `main` function
 enum { LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PUSH,
        OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
        OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT };
+
+const char *inst_str[] = 
+{ 
+  "LEA","IMM","JMP","CALL","JZ ","JNZ","ENT","ADJ","LEV","LI ","LC ","SI ","SC ","PUSH"," OR ","XOR","AND","EQ ","NE ","LT ","GT ","LE ","GE ","SHL","SHR","ADD","SUB","MUL","DIV","MOD"," OPEN","READ","CLOS","PRTF","MALC","MSET","MCMP","EXIT"
+};
+
+#define INST_LEN (sizeof(inst_str)/sizeof(char*))
+
+const char* inst_2_str(int inst)
+{
+  if ( (0 <= inst) && (inst < INST_LEN))
+  {
+    return inst_str[inst];
+  }
+  else
+    return 0;
+}
 
 // tokens and classes (operators last and in precedence order)
 enum {
@@ -1270,6 +1288,26 @@ void print_symbol_table()
   }
 }
 
+void print_text()
+{
+  int *cur_text = begin_text;
+  int i;
+  while (cur_text != text)
+  {
+    const char* inst_str = inst_2_str(*cur_text);
+    if (inst_str)
+      printf("addr %p ## %s\n", cur_text, inst_str);
+    else
+      printf("addr %p ## %x\n", cur_text, *cur_text);
+    ++cur_text;
+  }
+
+}
+
+void print_data()
+{
+}
+
 int main(int argc, char **argv)
 {
 
@@ -1292,6 +1330,8 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) for text area\n", poolsize);
         return -1;
     }
+    begin_text = text;
+
     if (!(data = malloc(poolsize))) {
         printf("could not malloc(%d) for data area\n", poolsize);
         return -1;
@@ -1368,6 +1408,7 @@ int main(int argc, char **argv)
     *--sp = (int)argv;
     *--sp = (int)tmp;
 
+    //print_text();
     // print_symbol_table();
     return eval();
 }
