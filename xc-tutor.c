@@ -19,6 +19,11 @@ void print_text();
 void print_data();
 void print_symbol_table();
 void print_source_code();
+void debug_usage();
+#define MAX_BREAK_POINT 10
+unsigned int break_points[MAX_BREAK_POINT];
+int last_bp;
+int meet_break_point(int *pc);
 #endif
 
 int token;                    // current token
@@ -1247,94 +1252,153 @@ void show_regs()
   printf("pc: %p\n", pc);
 }
 
+int run_debug_func(char *cmd_line)
+{
+  char cmd;
+
+  switch (cmd_line[0])
+  {
+    case 'q':
+    {
+      exit(1);
+    }
+    case 'd':
+    {
+      print_data();
+      break;
+    }
+    case 't':
+    {
+      print_symbol_table();
+      break;
+    }
+    case 'h':
+    case '?':
+    {
+      debug_usage();
+      break;
+    }
+    case 'l':
+    {
+      print_source_code();
+      break;
+    }
+    case 'e':
+    {
+      print_text();
+      break;
+    }
+    case 'b': // break pointer, ex: b 0xf756301c
+    {
+      unsigned int addr;
+
+      sscanf(cmd_line, "%c %x\n", &cmd, &addr);
+      if (last_bp < MAX_BREAK_POINT)
+      {
+        break_points[last_bp] = addr;
+        printf("set break_points[%d]: %x\n", last_bp, addr);
+        ++last_bp;
+      }
+      else
+      {
+        printf("exceed %d break points\n", MAX_BREAK_POINT);
+      }
+      break;
+    }
+    case 'x': // show data segment content, ex: x 0xf756301c
+    {
+      unsigned int addr;
+
+      sscanf(cmd_line, "%c %x\n", &cmd, &addr);
+      printf("cmd: %c, addr: %x\n", cmd, addr);
+      if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
+        printf("%s\n", (char *)addr);
+      else
+        printf("%x is not in data segment range (%p ~ %p)\n", addr, begin_data, data);
+      //printf("%#x(%d)\n", *((int *)addr));
+      break;
+    }
+    case 'r': // show registers
+    {
+      show_regs(); 
+      break;
+    }
+    default:
+    {
+      break;
+    }
+
+  } // end switch (input_str[0])
+  return 0;
+}
+
 void debug_usage()
 {
   printf("command\n");
   printf("s: step\n");
   printf("q: quit\n");
+  printf("c: continue\n");
   printf("r: print all register content\n");
   printf("d: print data\n");
   printf("e: print text\n");
   printf("l: print source code\n");
   printf("t: print symbol table\n");
   printf("x address: print data segment address\n");
+  printf("b address: set breakpoint, max breakpoint is %d\n", MAX_BREAK_POINT);
 }
 
 #define INPUT_SIZE 20
 int eval() {
   int line=0, ch;
+  unsigned int break_point = 0;
+  int continue_run = 0;
+  int meet_bp = 0;
   char input_str[INPUT_SIZE+1];
-  char cmd;
     int op, *tmp;
-    while (1) {
+    while (1) 
+    {
 #ifdef SUPPORT_DEBUG
         print_spec_text(pc);
-      debug_cmd:
-        printf("%d ## debug> ", line++);
-        fgets(input_str, INPUT_SIZE, stdin);
-        switch (input_str[0])
+        //if (break_point == (unsigned int)pc || continue_run == 0)
+
+  debug_input:
+        while(continue_run == 0)
         {
-          case 'q':
+          printf("%d ## debug> ", line++);
+          fgets(input_str, INPUT_SIZE, stdin);
+
+          if (input_str[0] == 's' || input_str[0] == '\n')
           {
-            exit(1);
+            continue_run = 0;
             break;
           }
-          case '\n':
-          case 's': // step
+
+          if (input_str[0] == 'c')
           {
+            continue_run = 1;
             break;
           }
-          case 'd':
+          else
           {
-            print_data();
-            goto debug_cmd;
+            run_debug_func(input_str);
+            continue_run = 0;
           }
-          case 't':
-          {
-            print_symbol_table();
-            goto debug_cmd;
-          }
-          case 'h':
-          case '?':
-          {
-            debug_usage();
-            goto debug_cmd;
-          }
-          case 'l':
-          {
-            print_source_code();
-            goto debug_cmd;
-          }
-          case 'e':
-          {
-            print_text();
-            goto debug_cmd;
-          }
-          case 'x': // show data segment content, ex: x 0xf756301c
-          {
-            unsigned int addr;
+        }
 
-            sscanf(input_str, "%c %x\n", &cmd, &addr);
-            printf("cmd: %c, addr: %x\n", cmd, addr);
-            if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
-              printf("%s\n", (char *)addr);
-            else
-              printf("%x is not in data segment range (%p ~ %p)\n", addr, begin_data, data);
-            //printf("%#x(%d)\n", *((int *)addr));
-            goto debug_cmd;
-          }
-          case 'r': // show registers
-          {
-            show_regs(); 
-          }
-          default:
-          {
-            goto debug_cmd;
-          }
+        if (meet_bp == 0 && meet_break_point(pc))
+        {
+          meet_bp = 1;
+          // printf("meet break pointer: %x\n", (unsigned int)pc);
+          continue_run = 0;
+          goto debug_input;
+        }
+        else
+        {
+          meet_bp = 0;
+        }
 
-        } // end switch (input_str[0])
 #endif
-        op = *pc++; // get next operation code
+          op = *pc++; // get next operation code
 
         if (op == IMM)       {ax = *pc++;}                                     // load immediate value to ax
         else if (op == LC)   {ax = *(char *)ax;}                               // load character to ax, address in ax
@@ -1390,6 +1454,24 @@ int eval() {
 }
 
 #ifdef SUPPORT_DEBUG
+int meet_break_point(int *pc)
+{
+  int i;
+  unsigned int cur_addr = (unsigned int)pc;
+  //printf("cur_addr: %x\n", cur_addr);
+
+  for (i = 0 ; i < last_bp ; ++i)
+  {
+    //printf("cur break_points[%d]: %x\n", i, break_points[i]);
+    if (cur_addr == break_points[i])
+    {
+      printf("break_points[%d]: %x\n", i, break_points[i]);
+      return 1;
+    }
+  }
+  return 0;
+}
+
 void print_symbol_table()
 {
   int *cur_id;
