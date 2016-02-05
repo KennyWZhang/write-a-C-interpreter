@@ -33,6 +33,7 @@ char *src, *old_src;          // pointer to source code string;
 int poolsize;                 // default size of text/data/stack
 int line;                     // line number
 int *begin_text;
+int *begin_stack;
 signed char *begin_data;
 int *text,                    // text segment
     *old_text,                // for dump text segment
@@ -1252,6 +1253,30 @@ void show_regs()
   printf("pc: %p\n", pc);
 }
 
+int is_data(unsigned int addr)
+{
+  if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
+    return 1;
+  else
+    return 0;
+}
+
+int is_text(unsigned int addr)
+{
+  if (((unsigned int)begin_text <= addr) && (addr < (unsigned int)text))
+    return 1;
+  else
+    return 0;
+}
+
+int is_stack(unsigned int addr)
+{
+  if (((unsigned int)begin_stack <= addr) && (addr < (unsigned int)begin_stack + poolsize))
+    return 1;
+  else
+    return 0;
+}
+
 int run_debug_func(char *cmd_line)
 {
   char cmd;
@@ -1311,10 +1336,19 @@ int run_debug_func(char *cmd_line)
 
       sscanf(cmd_line, "%c %x\n", &cmd, &addr);
       printf("cmd: %c, addr: %x\n", cmd, addr);
-      if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
-        printf("%s\n", (char *)addr);
-      else
-        printf("%x is not in data segment range (%p ~ %p)\n", addr, begin_data, data);
+      is_text(addr);
+      is_stack(addr);
+      //if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
+      if (is_data(addr) )
+        printf("data seg: %s\n", (char *)addr);
+      else if (is_text(addr) )
+             printf("text seg: %x(%d)\n", *((int *)addr), *((int *)addr));
+           else if (is_stack(addr) )
+                  printf("stack area: %x(%d)\n", *((int *)addr), *((int *)addr));
+                else
+                {
+                  printf("%x is not in text segment (%p ~ %p)\n/data segment (%p ~ %p)/stack range (%p ~ %p)\n", addr, begin_text, text, begin_data, data, begin_stack, begin_stack + poolsize);
+                }
       //printf("%#x(%d)\n", *((int *)addr));
       break;
     }
@@ -1343,7 +1377,7 @@ void debug_usage()
   printf("e: print text\n");
   printf("l: print source code\n");
   printf("t: print symbol table\n");
-  printf("x address: print data segment address\n");
+  printf("x address: print text/data segment stack area content\n");
   printf("b address: set breakpoint, max breakpoint is %d\n", MAX_BREAK_POINT);
 }
 
@@ -1617,6 +1651,9 @@ int main(int argc, char **argv)
         printf("could not malloc(%d) for stack area\n", poolsize);
         return -1;
     }
+
+    begin_stack = stack;
+
     if (!(symbols = malloc(poolsize))) {
         printf("could not malloc(%d) for symbol table\n", poolsize);
         return -1;
