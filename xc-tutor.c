@@ -83,11 +83,40 @@ enum {
   Assign, Cond, Lor, Lan, Or, Xor, And, Eq, Ne, Lt, Gt, Le, Ge, Shl, Shr, Add, Sub, Mul, Div, Mod, Inc, Dec, Brak
 };
 
+#ifdef SUPPORT_DEBUG
+const char *class_str_array[] = 
+{
+  "Num", "Fun", "Sys", "Glo", "Loc", "Id", "Char", "Else", "Enum", "If", "Int", "Return", "Sizeof", "While", "Assign", "Cond", "Lor", "Lan", "Or", "Xor", "And", "Eq", "Ne", "Lt", "Gt", "Le", "Ge", "Shl", "Shr", "Add", "Sub", "Mul", "Div", "Mod", "Inc", "Dec", "Brak"
+};
+
+const char *class_str(int cls)
+{
+  int class_index = cls-Num;
+
+  if (0 <= class_index && class_index <= Brak)
+    return class_str_array[class_index];
+  else
+    return "no such class";
+}
+#endif
+
+
 // fields of identifier
 enum {Token, Hash, Name, Type, Class, Value, BType, BClass, BValue, IdSize};
 
 // types of variable/function
 enum { CHAR, INT, PTR };
+
+#ifdef SUPPORT_DEBUG
+const char *type_str_array[] = {"CHAR", "INT", "PTR"};
+const char * type_str(int type)
+{
+  if (0 <= type && type <= PTR)
+    return type_str_array[type];
+  else
+    return "no such type";
+}
+#endif
 
 int basetype;    // the type of a declaration, make it global for convenience
 int expr_type;   // the type of an expression
@@ -1342,12 +1371,13 @@ int run_debug_func(char *cmd_line)
       if (is_data(addr) )
         printf("data seg: %s\n", (char *)addr);
       else if (is_text(addr) )
-             printf("text seg: %x(%d)\n", *((int *)addr), *((int *)addr));
+             printf("text seg: %#x(%d)\n", *((int *)addr), *((int *)addr));
            else if (is_stack(addr) )
-                  printf("stack area: %x(%d)\n", *((int *)addr), *((int *)addr));
+                  printf("stack area: %#x(%d)\n", *((int *)addr), *((int *)addr));
                 else
                 {
-                  printf("%x is not in text segment (%p ~ %p)\n/data segment (%p ~ %p)/stack range (%p ~ %p)\n", addr, begin_text, text, begin_data, data, begin_stack, begin_stack + poolsize);
+                  printf("%x is not in \ntext segment (%p ~ %p)\ndata segment (%p ~ %p)\nstack range (%p ~ %p)\n", addr, begin_text, text, begin_data, data, begin_stack, begin_stack + poolsize);
+
                 }
       //printf("%#x(%d)\n", *((int *)addr));
       break;
@@ -1506,6 +1536,7 @@ int meet_break_point(int *pc)
   return 0;
 }
 
+#ifdef SUPPORT_DEBUG
 void print_symbol_table()
 {
   int *cur_id;
@@ -1517,10 +1548,12 @@ void print_symbol_table()
   {
     printf("cur_id[Name]: %s\n", cur_id[Name]);
     printf("cur_id[Hash]: %x\n", cur_id[Hash]);
-    printf("cur_id[Type]: %d\n", cur_id[Type]);
+    printf("cur_id[Type]: %s (%d)\n", type_str(cur_id[Type]), cur_id[Type]);
+    printf("cur_id[Class]: %s (%d)\n", class_str(cur_id[Class]), cur_id[Class]);
     cur_id = cur_id + IdSize;
   }
 }
+#endif
 
 // return 1: has argument
 // return 0: has no argument
