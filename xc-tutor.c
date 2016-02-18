@@ -1547,9 +1547,10 @@ void print_symbol_table()
   while(cur_id[Token])
   {
     printf("cur_id[Name]: %s\n", cur_id[Name]);
-    printf("cur_id[Hash]: %x\n", cur_id[Hash]);
+    printf("cur_id[Hash]: %#x\n", cur_id[Hash]);
     printf("cur_id[Type]: %s (%d)\n", type_str(cur_id[Type]), cur_id[Type]);
     printf("cur_id[Class]: %s (%d)\n", class_str(cur_id[Class]), cur_id[Class]);
+    printf("cur_id[Value]: %#x (%d)\n", cur_id[Value], cur_id[Value]);
     cur_id = cur_id + IdSize;
   }
 }
