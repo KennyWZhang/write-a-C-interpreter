@@ -1308,8 +1308,6 @@ int is_stack(unsigned int addr)
 
 int run_debug_func(char *cmd_line)
 {
-  char cmd;
-
   switch (cmd_line[0])
   {
     case 'q':
@@ -1345,6 +1343,7 @@ int run_debug_func(char *cmd_line)
     case 'b': // break pointer, ex: b 0xf756301c
     {
       unsigned int addr;
+      char cmd;
 
       sscanf(cmd_line, "%c %x\n", &cmd, &addr);
       if (last_bp < MAX_BREAK_POINT)
@@ -1361,15 +1360,44 @@ int run_debug_func(char *cmd_line)
     }
     case 'x': // show data segment content, ex: x 0xf756301c
     {
+      char cmd_str[5];
+
+      switch (cmd_line[1])
+      {
+        case 's':
+        {
+          break;
+        }
+        case 'c':
+        {
+          break;
+        }
+        case 'i':
+        {
+          break;
+        }
+        default:
+        {
+          printf("xxx\n");
+          return -1;
+        }
+
+      }
       unsigned int addr;
 
-      sscanf(cmd_line, "%c %x\n", &cmd, &addr);
-      printf("cmd: %c, addr: %x\n", cmd, addr);
+      sscanf(cmd_line, "%s %x\n", cmd_str, &addr);
+      printf("cmd: %s, addr: %#x\n", cmd_str, addr);
+      #if 1
       is_text(addr);
       is_stack(addr);
       //if (((unsigned int)begin_data <= addr) && (addr < (unsigned int)data))
       if (is_data(addr) )
-        printf("data seg: %s\n", (char *)addr);
+      {
+        if (cmd_line[1] == 's')
+          printf("data seg: %s\n", (char *)addr);
+        if (cmd_line[1] == 'i')
+          printf("data seg: %d\n", *(int *)addr);
+      }
       else if (is_text(addr) )
              printf("text seg: %#x(%d)\n", *((int *)addr), *((int *)addr));
            else if (is_stack(addr) )
@@ -1379,7 +1407,9 @@ int run_debug_func(char *cmd_line)
                   printf("%x is not in \ntext segment (%p ~ %p)\ndata segment (%p ~ %p)\nstack range (%p ~ %p)\n", addr, begin_text, text, begin_data, data, begin_stack, begin_stack + poolsize);
 
                 }
+
       //printf("%#x(%d)\n", *((int *)addr));
+      #endif
       break;
     }
     case 'r': // show registers
@@ -1407,7 +1437,9 @@ void debug_usage()
   printf("e: print text\n");
   printf("l: print source code\n");
   printf("t: print symbol table\n");
-  printf("x address: print text/data segment stack area content\n");
+  printf("xs address: print text/data segment stack area content as string\n");
+  printf("xc address: not yet complete. print text/data segment stack area content as char\n");
+  printf("xi address: print text/data segment stack area content as int\n");
   printf("b address: set breakpoint, max breakpoint is %d\n", MAX_BREAK_POINT);
 }
 
