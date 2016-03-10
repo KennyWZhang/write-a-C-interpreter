@@ -1376,6 +1376,10 @@ int run_debug_func(char *cmd_line)
         {
           break;
         }
+        case 'x':
+        {
+          break;
+        }
         default:
         {
           printf("xxx\n");
@@ -1396,7 +1400,9 @@ int run_debug_func(char *cmd_line)
         if (cmd_line[1] == 's')
           printf("data seg: %s\n", (char *)addr);
         if (cmd_line[1] == 'i')
-          printf("data seg: %d\n", *(int *)addr);
+          printf("data seg: %#d\n", *(int *)addr);
+        if (cmd_line[1] == 'x')
+          printf("data seg: %#x\n", *(int *)addr);
       }
       else if (is_text(addr) )
              printf("text seg: %#x(%d)\n", *((int *)addr), *((int *)addr));
@@ -1440,6 +1446,7 @@ void debug_usage()
   printf("xs address: print text/data segment stack area content as string\n");
   printf("xc address: not yet complete. print text/data segment stack area content as char\n");
   printf("xi address: print text/data segment stack area content as int\n");
+  printf("xx address: print text/data segment stack area content as hex\n");
   printf("b address: set breakpoint, max breakpoint is %d\n", MAX_BREAK_POINT);
 }
 
